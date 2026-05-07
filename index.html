@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <title>Compound Interest Calculator | Professional Investment Growth Tool</title>
 <meta name="description" content="Professional compound interest calculator with inflation adjustment, multi-deposit management, and interactive charts. Plan your financial future with precision.">
 <meta name="keywords" content="compound interest calculator, investment calculator, savings calculator, financial planning, retirement calculator">
@@ -31,7 +31,6 @@ tailwind.config = {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -552,7 +551,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
     <p><strong>For Educational Purposes Only.</strong> This calculator is provided as an educational tool. It is not intended to be, and should not be construed as, financial advice.</p>
     <p><strong>No Guarantee of Results.</strong> All projections are estimates based on the assumptions you provide. Actual investment returns will vary due to market conditions, fees, taxes, and other factors.</p>
     <p><strong>Consult a Professional.</strong> We strongly recommend consulting with a qualified financial advisor before making any investment decisions.</p>
-    <p><strong>Assumptions.</strong> This calculator assumes constant interest rates, which rarely occur in real markets. It does not account for market volatility, inflation, taxes, fees, or other real-world factors.</p>
+    <p><strong>Assumptions.</strong> This calculator assumes constant interest rates and a fixed annual inflation rate, which simplifies real-world market dynamics. It does not account for market volatility, variable inflation, taxes, fees, or other real-world factors.</p>
   </div>
 </div></div>
 
@@ -585,7 +584,6 @@ const CURRENCIES = {
 const COMP_MAP = { monthly: 12, quarterly: 4, 'semi-annual': 2, annual: 1 };
 
 let chart = null;
-let calcTimeout = null;
 
 // ===== STATE =====
 const S = {
@@ -705,8 +703,7 @@ function calc() {
         else if (freq === 'one-time') doAdd = m === 1;
         if (!doAdd) continue;
         const begin = d.timing === 'beginning';
-        if ((m === 1 || m === 1) && begin) { bal += v; totDep += v; yDep += v; }
-        else if (begin) { bal += v; totDep += v; yDep += v; }
+        if (begin) { bal += v; totDep += v; yDep += v; }
         else { /* handled after interest */ }
       }
     };
@@ -1104,7 +1101,6 @@ function loadFromShare() {
     if (!p) return;
     const d = JSON.parse(decodeURIComponent(atob(p)));
     restoreCalc(d);
-    calc();
   } catch(e) {}
 }
 
@@ -1113,7 +1109,13 @@ function resetAll() {
   $('principal').value = 100000; $('interestRate').value = 12; $('rateType').value = 'annual';
   $('duration').value = 10; $('durationUnit').value = 'years'; $('monthlyDeposit').value = 1000;
   $('compounding').value = 'monthly'; $('inflationRate').value = 3;
-  qsa('#depTimingToggle [data-value]').forEach(b => b.classList.toggle('bg-fin-500', b.dataset.value === 'beginning'));
+  qsa('#depTimingToggle [data-value]').forEach(function(b) {
+    var on = b.dataset.value === 'beginning';
+    b.classList.toggle('bg-fin-500', on);
+    b.classList.toggle('text-white', on);
+    b.classList.toggle('text-gray-500', !on);
+    b.classList.toggle('dark:text-gray-400', !on);
+  });
   $('advPrincipal').value = 100000; $('advInterestRate').value = 12;
   $('advRateType').value = 'annual'; $('advDuration').value = 10; $('advDurationUnit').value = 'years';
   $('advCompounding').value = 'monthly'; $('yearType').value = '365'; $('advInflationRate').value = 3;
@@ -1218,15 +1220,19 @@ function init() {
   var tipEl = document.createElement('div');
   tipEl.className = 'fixed z-[300] px-2 py-1.5 text-xs rounded-lg bg-gray-900 dark:bg-gray-700 text-white shadow-lg pointer-events-none hidden whitespace-nowrap';
   document.body.appendChild(tipEl);
+  function showTip(el) {
+    tipEl.textContent = el.dataset.tip || '';
+    tipEl.classList.remove('hidden');
+    var r = el.getBoundingClientRect();
+    tipEl.style.left = Math.max(4, Math.min(window.innerWidth - tipEl.offsetWidth - 4, r.left + r.width/2 - tipEl.offsetWidth/2)) + 'px';
+    tipEl.style.top = (r.bottom + 6) + 'px';
+  }
+  function hideTip() { tipEl.classList.add('hidden'); }
   qsa('.info-icon').forEach(function(el) {
-    el.addEventListener('mouseenter', function() {
-      tipEl.textContent = this.dataset.tip || '';
-      tipEl.classList.remove('hidden');
-      var r = this.getBoundingClientRect();
-      tipEl.style.left = Math.max(4, Math.min(window.innerWidth - tipEl.offsetWidth - 4, r.left + r.width/2 - tipEl.offsetWidth/2)) + 'px';
-      tipEl.style.top = (r.bottom + 6) + 'px';
-    });
-    el.addEventListener('mouseleave', function() { tipEl.classList.add('hidden'); });
+    el.addEventListener('mouseenter', function() { showTip(this); });
+    el.addEventListener('mouseleave', hideTip);
+    el.addEventListener('focus', function() { showTip(this); });
+    el.addEventListener('blur', hideTip);
   });
 
   // Initialize mode tab visuals + initial calc
