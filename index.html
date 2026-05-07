@@ -1098,10 +1098,11 @@ function getShareUrl() {
 function loadFromShare() {
   try {
     const p = new URLSearchParams(location.search).get('c');
-    if (!p) return;
+    if (!p) return false;
     const d = JSON.parse(decodeURIComponent(atob(p)));
     restoreCalc(d);
-  } catch(e) {}
+    return true;
+  } catch(e) { return false; }
 }
 
 // ===== RESET =====
@@ -1132,8 +1133,8 @@ function init() {
   if (savedTheme === 'dark' || savedTheme === 'light') setTheme(savedTheme);
   else setTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
-  loadFromLS(); loadFromShare();
-  updateCurrency();
+  loadFromLS();
+  if (!loadFromShare()) updateCurrency();
   renderSaved(); renderDeposits(); renderWithdrawals();
 
   // Theme toggle
@@ -1148,8 +1149,13 @@ function init() {
   // Basic inputs
   qsa('#basicInputs input, #basicInputs select').forEach(el => { el.addEventListener('input', calc); el.addEventListener('change', calc); });
   qsa('#depTimingToggle [data-value]').forEach(b => b.addEventListener('click', function() {
-    qsa('#depTimingToggle [data-value]').forEach(x => x.classList.remove('bg-fin-500', 'text-white'));
-    this.classList.add('bg-fin-500', 'text-white'); calc();
+    qsa('#depTimingToggle [data-value]').forEach(function(x) {
+      var on = x === this;
+      x.classList.toggle('bg-fin-500', on);
+      x.classList.toggle('text-white', on);
+      x.classList.toggle('text-gray-500', !on);
+      x.classList.toggle('dark:text-gray-400', !on);
+    }, this); calc();
   }));
 
   // Advanced inputs
@@ -1229,6 +1235,7 @@ function init() {
   }
   function hideTip() { tipEl.classList.add('hidden'); }
   qsa('.info-icon').forEach(function(el) {
+    el.setAttribute('tabindex', '0');
     el.addEventListener('mouseenter', function() { showTip(this); });
     el.addEventListener('mouseleave', hideTip);
     el.addEventListener('focus', function() { showTip(this); });
