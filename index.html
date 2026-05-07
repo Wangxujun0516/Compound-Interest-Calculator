@@ -617,15 +617,17 @@ function setTheme(t) {
 function toggleTheme() { setTheme(S.theme === 'light' ? 'dark' : 'light'); }
 
 // ===== CURRENCY =====
+function updateCurrencySymbols() {
+  qsa('.cur-sym').forEach(e => e.textContent = (CURRENCIES[S.currency] || CURRENCIES.USD).sym);
+}
 function updateCurrency() {
   S.currency = $('currencySelect').value;
-  qsa('.cur-sym').forEach(e => e.textContent = (CURRENCIES[S.currency] || CURRENCIES.USD).sym);
+  updateCurrencySymbols();
   calc();
 }
 
 // ===== MODE SWITCHING =====
-function switchMode(m) {
-  S.mode = m;
+function applyModeVisual(m) {
   qsa('.mode-tab').forEach(t => {
     t.classList.toggle('bg-fin-500', t.dataset.mode === m);
     t.classList.toggle('text-white', t.dataset.mode === m);
@@ -634,6 +636,10 @@ function switchMode(m) {
   });
   $('basicInputs').classList.toggle('hidden', m !== 'basic');
   $('advancedInputs').classList.toggle('hidden', m !== 'advanced');
+}
+function switchMode(m) {
+  S.mode = m;
+  applyModeVisual(m);
   calc();
 }
 // Exposed for footer links
@@ -1016,7 +1022,7 @@ function renderSaved() {
   dd.querySelectorAll('.load-btn').forEach(el => {
     el.addEventListener('click', function() {
       const d = S.saved[parseInt(this.dataset.idx)];
-      if (d) { restoreCalc(d.data); $('savedDropdown').classList.remove('open'); calc(); }
+      if (d) { restoreCalc(d.data); $('savedDropdown').classList.remove('open'); }
     });
   });
   dd.querySelectorAll('.del-btn').forEach(el => {
@@ -1029,22 +1035,36 @@ function renderSaved() {
 }
 
 function restoreCalc(d) {
-  if (d.currency) { S.currency = d.currency; $('currencySelect').value = d.currency; updateCurrency(); }
-  if (d.mode) switchMode(d.mode);
-  // Restore basic
+  // 1. Set currency in S and DOM (no calc)
+  if (d.currency) { S.currency = d.currency; $('currencySelect').value = d.currency; }
+  updateCurrencySymbols();
+
+  // 2. Set mode in S and apply visual (no calc)
+  if (d.mode) S.mode = d.mode;
+  applyModeVisual(S.mode);
+
+  // 3. Restore basic DOM values (no calc)
   if (d.b) {
-    Object.assign(S, d.b);
     if (d.b.p !== undefined) $('principal').value = d.b.p;
     if (d.b.r !== undefined) $('interestRate').value = d.b.r;
     if (d.b.rt) $('rateType').value = d.b.rt;
     if (d.b.d !== undefined) $('duration').value = d.b.d;
     if (d.b.du) $('durationUnit').value = d.b.du;
     if (d.b.md !== undefined) $('monthlyDeposit').value = d.b.md;
-    if (d.b.dt) qsa('#depTimingToggle [data-value]').forEach(b => b.classList.toggle('bg-fin-500', b.dataset.value === d.b.dt));
+    if (d.b.dt) {
+      qsa('#depTimingToggle [data-value]').forEach(function(b) {
+        var on = b.dataset.value === d.b.dt;
+        b.classList.toggle('bg-fin-500', on);
+        b.classList.toggle('text-white', on);
+        b.classList.toggle('text-gray-500', !on);
+        b.classList.toggle('dark:text-gray-400', !on);
+      });
+    }
     if (d.b.c) $('compounding').value = d.b.c;
     if (d.b.inf !== undefined) $('inflationRate').value = d.b.inf;
   }
-  // Restore advanced
+
+  // 4. Restore advanced DOM values (no calc)
   if (d.a) {
     if (d.a.p !== undefined) $('advPrincipal').value = d.a.p;
     if (d.a.r !== undefined) $('advInterestRate').value = d.a.r;
@@ -1058,6 +1078,9 @@ function restoreCalc(d) {
     S.advanced.withdrawals = d.a.wd || [];
     renderDeposits(); renderWithdrawals();
   }
+
+  // 5. Single calc at the end
+  calc();
 }
 
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
@@ -1191,8 +1214,23 @@ function init() {
     if (!open) p.classList.add('open');
   }));
 
-  // Initial calc
-  calc();
+  // Tooltips for info-icon
+  var tipEl = document.createElement('div');
+  tipEl.className = 'fixed z-[300] px-2 py-1.5 text-xs rounded-lg bg-gray-900 dark:bg-gray-700 text-white shadow-lg pointer-events-none hidden whitespace-nowrap';
+  document.body.appendChild(tipEl);
+  qsa('.info-icon').forEach(function(el) {
+    el.addEventListener('mouseenter', function() {
+      tipEl.textContent = this.dataset.tip || '';
+      tipEl.classList.remove('hidden');
+      var r = this.getBoundingClientRect();
+      tipEl.style.left = Math.max(4, Math.min(window.innerWidth - tipEl.offsetWidth - 4, r.left + r.width/2 - tipEl.offsetWidth/2)) + 'px';
+      tipEl.style.top = (r.bottom + 6) + 'px';
+    });
+    el.addEventListener('mouseleave', function() { tipEl.classList.add('hidden'); });
+  });
+
+  // Initialize mode tab visuals + initial calc
+  switchMode(S.mode);
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
